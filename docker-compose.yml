@@ -1,0 +1,77 @@
+version: "3.8"
+
+networks:
+  hadoop-net:
+    driver: bridge
+
+services:
+
+  namenode:
+    image: apache/hadoop:3.3.6
+    container_name: namenode
+    hostname: namenode
+    user: root
+    environment:
+      - HADOOP_HOME=/opt/hadoop
+      - CLUSTER_NAME=steam-cluster
+    volumes:
+      - ./hadoop-config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
+      - ./hadoop-config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
+      - namenode_data:/hadoop/dfs/name
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+    command: >
+      bash -c "
+        if [ ! -f /hadoop/dfs/name/current/VERSION ]; then
+          hdfs namenode -format -force;
+        fi &&
+        hdfs namenode
+      "
+    networks:
+      - hadoop-net
+
+  datanode1:
+    image: apache/hadoop:3.3.6
+    container_name: datanode1
+    hostname: datanode1
+    user: root
+    depends_on:
+      - namenode
+    environment:
+      - HADOOP_HOME=/opt/hadoop
+    volumes:
+      - ./hadoop-config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
+      - ./hadoop-config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
+      - datanode1_data:/hadoop/dfs/data
+    ports:
+      - "9864:9864"
+      - "9866:9866"
+    command: hdfs datanode
+    networks:
+      - hadoop-net
+
+  datanode2:
+    image: apache/hadoop:3.3.6
+    container_name: datanode2
+    hostname: datanode2
+    user: root
+    depends_on:
+      - namenode
+    environment:
+      - HADOOP_HOME=/opt/hadoop
+    volumes:
+      - ./hadoop-config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
+      - ./hadoop-config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
+      - datanode2_data:/hadoop/dfs/data
+    ports:
+      - "9865:9864"
+      - "9867:9866"
+    command: hdfs datanode
+    networks:
+      - hadoop-net
+
+volumes:
+  namenode_data:
+  datanode1_data:
+  datanode2_data:
