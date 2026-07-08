@@ -30,12 +30,12 @@ def upload_data(source_path: str = "/opt/data/", dest_path: str = "/steam/"):
     """Đưa dữ liệu CSV và games.json từ máy local lên HDFS"""
 
     game_path = f"{source_path}metadata/games.json"
-    game_dest = f"{dest_path}metadata"
+    game_dest = f"{dest_path}metadata/"
     typer.echo(f"Đang upload dữ liệu từ {game_path} lên {game_dest}...")
     run_cmd(["docker", "exec", CONTAINER_NAME, "hdfs", "dfs", "-put", "-f", game_path, game_dest])
 
-    review_path = f"{source_path}reviews/merged"
-    review_dest = f"{dest_path}reviews/merged"
+    review_path = f"{source_path}reviews/merged/"
+    review_dest = f"{dest_path}reviews/merged/"
     typer.echo(f"Đang upload dữ liệu từ {review_path} lên {review_dest}...")
     run_cmd(["docker", "exec", CONTAINER_NAME, "hdfs", "dfs", "-put", "-f", review_path, review_dest])
 

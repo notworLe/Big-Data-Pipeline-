@@ -50,6 +50,19 @@ services:
     depends_on:
       - namenode
 
+  spark-notebook:
+    image: jupyter/pyspark-notebook:spark-3.5.0
+    container_name: spark-notebook
+    ports:
+      - "8888:8888"
+    volumes:
+      - .:/home/jovyan/work
+    environment:
+      - JUPYTER_TOKEN=easy_spark
+    depends_on:
+      - namenode
+
+
 volumes:
   hadoop_namenode:
   hadoop_datanode1:
