@@ -29,7 +29,7 @@ def setup_dfs():
 def upload_data(source_path: str = "/opt/data/", dest_path: str = "/steam/"):
     """Đưa dữ liệu CSV và games.json từ máy local lên HDFS"""
 
-    game_path = f"{source_path}metadata/games.json"
+    game_path = f"{source_path}metadata/games_cleaned.json"
     game_dest = f"{dest_path}metadata/"
     typer.echo(f"Đang upload dữ liệu từ {game_path} lên {game_dest}...")
     run_cmd(["docker", "exec", CONTAINER_NAME, "hdfs", "dfs", "-put", "-f", game_path, game_dest])

@@ -62,8 +62,38 @@ services:
     depends_on:
       - namenode
 
+  hive-metastore-postgresql:
+    image: bde2020/hive-metastore-postgresql:2.3.0
+    container_name: hive-metastore-postgresql
+    volumes:
+      - hive_metastore_postgresql:/var/lib/postgresql/data
+
+  hive-metastore:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-metastore
+    env_file:
+      - ./hadoop-tool/hive.env
+    command: /opt/hive/bin/hive --service metastore
+    ports:
+      - "9083:9083"
+    depends_on:
+      - hive-metastore-postgresql
+      - namenode
+
+  hive-server:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-server
+    env_file:
+      - ./hadoop-tool/hive.env
+    ports:
+      - "10000:10000"
+      - "10002:10002"
+    depends_on:
+      - hive-metastore
+
 
 volumes:
   hadoop_namenode:
   hadoop_datanode1:
   hadoop_datanode2:
+  hive_metastore_postgresql:
