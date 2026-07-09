@@ -28,20 +28,22 @@ def setup_dfs():
     else:
         typer.secho("Thư mục /steam/silver đã tồn tại, bỏ qua bước tạo.", fg=typer.colors.YELLOW)
 
+    typer.secho("FINISHING SETUP PROCESS.", fg=typer.colors.BLUE)
+
 @app.command("upload_silver")
 def upload_silver(source_path: str = "/opt/data/silver/", dest_path: str = "/steam/silver/"):
     """Đưa dữ liệu CSV và games.json từ máy local silver lên HDFS silver"""
     
 
     # Upload games.json
-    # check_game = subprocess.run(["docker", "exec", CONTAINER_NAME, "hdfs", "dfs", "-test", "-d", f"{dest_path}/games.json"])
-    # if check_game.returncode == 0:
-    #     typer.secho("Games.json already exists, skipping", fg=typer.colors.YELLOW)
-    # else:
-    #     game_path = f"{source_path}games.json"
-    #     game_dest = f"{dest_path}metadata/"
-    #     typer.echo(f"Đang upload dữ liệu từ {game_path} lên {game_dest}...")
-    #     run_cmd(["docker", "exec", CONTAINER_NAME, "hdfs", "dfs", "-put", "-f", game_path, game_dest])
+    check_game = subprocess.run(["docker", "exec", CONTAINER_NAME, "hdfs", "dfs", "-test", "-d", f"{dest_path}/games.json"])
+    if check_game.returncode == 0:
+        typer.secho("Games.json already exists, skipping", fg=typer.colors.YELLOW)
+    else:
+        game_path = f"{source_path}metadata/games.json"
+        game_dest = f"{dest_path}metadata/"
+        typer.echo(f"Đang upload dữ liệu từ {game_path} lên {game_dest}...")
+        run_cmd(["docker", "exec", CONTAINER_NAME, "hdfs", "dfs", "-put", "-f", game_path, game_dest])
     
 
     # Upload reviews
@@ -69,11 +71,8 @@ def upload_silver(source_path: str = "/opt/data/silver/", dest_path: str = "/ste
     unseen_year = [year for year in year_local if year not in year_hdfs]
 
     for year in unseen_year:
-        run_cmd(["docker", "exec", CONTAINER_NAME, "hdfs", "dfs", "-mkdir", "-p", f"{dest_path}reviews/{year}"])
-        print(f"Created folder: {dest_path}reviews/{year}")
-
-        review_path = f"{source_path}reviews/{year}/"
-        review_dest = f"{dest_path}reviews/{year}/"
+        review_path = f"{source_path}reviews/{year}"
+        review_dest = f"{dest_path}reviews/"
         typer.echo(f"Đang upload dữ liệu từ {review_path} lên {review_dest}...")
         run_cmd(["docker", "exec", CONTAINER_NAME, "hdfs", "dfs", "-put", "-f", review_path, review_dest])
 
