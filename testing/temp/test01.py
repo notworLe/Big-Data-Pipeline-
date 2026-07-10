@@ -1,8 +1,7 @@
+import pandas as pd
 from pathlib import Path
 
+GAME_PATH = Path.cwd() / "data" / "silver" / "metadata" / "games.json"
 
-current = Path.cwd() / "data" / "silver" / "reviews"
-data = "a" /  current / "data" 
-
-print(current)
-print(current / data)
+df = pd.read_json(GAME_PATH)
+print(df.head())

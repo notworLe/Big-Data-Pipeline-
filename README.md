@@ -102,47 +102,125 @@ Steam Dataset (31M reviews, Mendeley Data)
 
 - **Layer 1 — HDFS**: đang cấu hình Docker Compose (NameNode + 2 DataNode), cần review `core-site.xml` / `hdfs-site.xml` và xử lý bài toán small files trước khi ingest dataset.
 
-# Installition
+# Installation
+
+## Yêu cầu
+
+- Docker Desktop (có WSL2 backend)
+- Python 3.10+
+- Dataset Steam Games từ [Mendeley Data](https://data.mendeley.com/datasets/jxy85cr3th/2)
 
 ## Data structure
 
-```bash
-data
-├── bronze
-│   ├── metadata
+Tải dataset về và đặt vào thư mục `data/bronze/`:
+
+```
+data/
+├── bronze/
+│   ├── metadata/
+│   │   └── games.json          ← file gốc từ dataset
+│   └── reviews/
+│       ├── 2020/
+│       │   ├── 1000_aa.csv
+│       │   └── 1000_ab.csv
+│       ├── 2021/
+│       ├── 2022/
+│       ├── 2023/
+│       └── 2024/
+├── silver/                      ← tự tạo bởi pipeline (bước 2)
+│   ├── metadata/
 │   │   ├── games.json
-│   ├── reviews
-│   │   ├── 2020
-│   │   │   ├── 1000_aa.csv
-│   │   │   └── 1000_ab.csv
-│   │   ├── 2021
-│   │   └── 2022
-│   └── (còn lại)
-├── silver
-│   ├── metadata
-│   │   └── games.json
-│   ├── reviews
-│   │   ├── 2020
-│   │   │   ├── part_1.csv
-│   │   │   └── part_2.csv
-│   │   ├── 2021
-│   │   └── 2022
-│   └── (còn lại)
-└── gold
+│   │   └── games_lines.jsonl   ← tự tạo bởi convert (bước 3)
+│   └── reviews/
+│       ├── 2020/
+│       │   ├── part_1.csv
+│       │   └── part_2.csv
+│       └── ...
+└── gold/
 ```
 
-## BƯỚC 1: Khởi động các Container Docker (HDFS & Jupyter)
+---
 
-Tại thư mục gốc của dự án ( bigdata ), chạy lệnh sau để khởi động HDFS NameNode, DataNodes và Jupyter Notebook:
+## Các bước chạy
 
-    docker-compose up -d --build
+### Bước 1 — Khởi động Docker cluster
 
-(Hãy kiểm tra bằng lệnh docker ps để đảm bảo cả 4 container: namenode , datanode1 , datanode2 , và spark-
-notebook đều đang chạy ở trạng thái Up ).
-──────
+```bash
+docker-compose up -d --build
+```
 
-### BƯỚC 2: Tiền xử lý file Metadata (Tránh lỗi bộ nhớ của Spark)
+Kiểm tra bằng `docker ps`, đảm bảo các container đang chạy: `namenode`, `datanode1`, `datanode2`, `spark-notebook`.
 
-`python cli.py pipeline run`
+### Bước 2 — Chạy pipeline (transform bronze → setup HDFS → upload lên HDFS)
 
-**Muốn biết rõ**: add `--help`
+```bash
+python cli.py pipeline run
+```
+
+Pipeline sẽ tự động:
+1. Merge các file CSV nhỏ trong `bronze/reviews/` thành các part file lớn (~1M rows) vào `silver/reviews/`
+2. Copy `games.json` sang `silver/metadata/`
+3. Tạo thư mục trên HDFS (`/steam/silver/`)
+4. Upload toàn bộ data silver lên HDFS (chỉ upload year/file chưa có, idempotent)
+
+> **Muốn biết rõ**: thêm `--help` để xem các lệnh con.
+
+### Bước 3 — Convert games.json sang JSON Lines (chạy 1 lần duy nhất)
+
+```bash
+docker exec spark-notebook python /home/jovyan/work/convert_games_jsonl.py
+```
+
+> File `games.json` gốc là 1 JSON object lớn `{ "app_id": {...}, ... }` — Spark không đọc được trực tiếp.
+> Script này convert sang JSON Lines (1 game/dòng) để Spark xử lý hiệu quả.
+
+### Bước 4 — Upload file JSONL lên HDFS (chạy 1 lần duy nhất)
+
+```bash
+docker exec namenode hdfs dfs -put -f /opt/data/silver/metadata/games_lines.jsonl /steam/silver/metadata/
+```
+
+### Bước 5 — Cấp quyền ghi cho Spark trên HDFS (chạy 1 lần duy nhất)
+
+```bash
+docker exec namenode hdfs dfs -chmod -R 777 /steam
+```
+
+> Spark chạy với user `jovyan`, cần quyền ghi vào `/steam/warehouse/` để lưu kết quả Parquet.
+
+### Bước 6 — Chạy ETL Batch (Cold Pipeline — PySpark)
+
+```bash
+docker exec spark-notebook /usr/local/spark/bin/spark-submit --driver-memory 3g /home/jovyan/work/etl_batch.py
+```
+
+Kết quả khi thành công:
+
+```
+Đang đọc dữ liệu từ HDFS...
+Đang làm sạch dữ liệu review...
+Đang join reviews với metadata game...
+Tính: Top game positive nhất...
+Tính: Sentiment theo genre...
+Tính: Trend theo năm...
+Tính: Trend theo tháng...
+Tính: Top game theo sentiment_ratio (positive/negative gốc từ metadata)...
+Đang ghi kết quả ra HDFS (Parquet) — batch load_date=YYYY-MM-DD...
+=== ETL HOÀN TẤT ===
+```
+
+5 bảng Parquet được ghi vào HDFS tại `/steam/warehouse/`:
+
+| Bảng | Nội dung |
+|------|----------|
+| `top_games_by_reviews` | Top game positive nhất (≥20 review) |
+| `sentiment_by_genre` | Tỉ lệ recommend theo genre |
+| `trend_by_year` | Trend sentiment theo năm |
+| `trend_by_month` | Trend sentiment theo tháng |
+| `top_games_by_metadata_ratio` | Top game theo positive/negative ratio gốc |
+
+> ⚠️ `--driver-memory 3g` **bắt buộc** để tránh OutOfMemoryError khi join ~31M dòng review.
+
+---
+
+> **Lưu ý**: Bước 3, 4, 5 chỉ cần chạy **1 lần duy nhất**. Từ lần sau chỉ cần chạy bước 2 (nếu có data mới) và bước 6.

@@ -14,8 +14,8 @@ from pyspark.sql.types import IntegerType
 from datetime import date
 
 HDFS_HOST = "namenode:9000"
-GAMES_PATH = f"hdfs://{HDFS_HOST}/steam/metadata/games_cleaned.json"
-REVIEWS_PATH = f"hdfs://{HDFS_HOST}/steam/reviews/merged/merged/*.csv"
+GAMES_PATH = f"hdfs://{HDFS_HOST}/steam/silver/metadata/games_lines.jsonl"
+REVIEWS_PATH = f"hdfs://{HDFS_HOST}/steam/silver/reviews/*/*.csv"
 OUTPUT_BASE = f"hdfs://{HDFS_HOST}/steam/warehouse"
 BATCH_DATE = date.today().isoformat()  # VD: "2026-07-09" — mỗi lần chạy 1 batch date riêng
 
@@ -35,12 +35,11 @@ def main():
     # ------------------------------------------------------------------
     print("Đang đọc dữ liệu từ HDFS...")
 
-    # Chỉ lấy các cột thực sự cần cho aggregation — bỏ các cột text/array nặng
-    # (about_the_game, detailed_description, short_description, categories,
-    #  full_audio_languages, supported_languages, tags) để giảm RAM khi join.
+    # games_lines.jsonl: JSON Lines format — mỗi dòng 1 game object có sẵn trường app_id
     df_games_raw = (
         spark.read.json(GAMES_PATH)
         .select("app_id", "name", "genres", "positive", "negative", "release_date")
+        .filter(F.col("name").isNotNull())
     )
 
     df_reviews_raw = (

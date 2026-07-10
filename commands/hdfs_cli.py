@@ -1,4 +1,3 @@
-from asyncio import subprocess
 import typer
 import subprocess
 from pathlib import Path
@@ -36,7 +35,7 @@ def upload_silver(source_path: str = "/opt/data/silver/", dest_path: str = "/ste
     
 
     # Upload games.json
-    check_game = subprocess.run(["docker", "exec", CONTAINER_NAME, "hdfs", "dfs", "-test", "-d", f"{dest_path}/games.json"])
+    check_game = subprocess.run(["docker", "exec", CONTAINER_NAME, "hdfs", "dfs", "-test", "-e", f"{dest_path}metadata/games.json"])
     if check_game.returncode == 0:
         typer.secho("Games.json already exists, skipping", fg=typer.colors.YELLOW)
     else:
