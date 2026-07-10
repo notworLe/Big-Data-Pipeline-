@@ -158,6 +158,7 @@ python cli.py pipeline run
 ```
 
 Pipeline sẽ tự động:
+
 1. Merge các file CSV nhỏ trong `bronze/reviews/` thành các part file lớn (~1M rows) vào `silver/reviews/`
 2. Copy `games.json` sang `silver/metadata/`
 3. Tạo thư mục trên HDFS (`/steam/silver/`)
@@ -211,12 +212,12 @@ Tính: Top game theo sentiment_ratio (positive/negative gốc từ metadata)...
 
 5 bảng Parquet được ghi vào HDFS tại `/steam/warehouse/`:
 
-| Bảng | Nội dung |
-|------|----------|
-| `top_games_by_reviews` | Top game positive nhất (≥20 review) |
-| `sentiment_by_genre` | Tỉ lệ recommend theo genre |
-| `trend_by_year` | Trend sentiment theo năm |
-| `trend_by_month` | Trend sentiment theo tháng |
+| Bảng                          | Nội dung                                  |
+| ----------------------------- | ----------------------------------------- |
+| `top_games_by_reviews`        | Top game positive nhất (≥20 review)       |
+| `sentiment_by_genre`          | Tỉ lệ recommend theo genre                |
+| `trend_by_year`               | Trend sentiment theo năm                  |
+| `trend_by_month`              | Trend sentiment theo tháng                |
 | `top_games_by_metadata_ratio` | Top game theo positive/negative ratio gốc |
 
 > ⚠️ `--driver-memory 3g` **bắt buộc** để tránh OutOfMemoryError khi join ~31M dòng review.
@@ -224,3 +225,23 @@ Tính: Top game theo sentiment_ratio (positive/negative gốc từ metadata)...
 ---
 
 > **Lưu ý**: Bước 3, 4, 5 chỉ cần chạy **1 lần duy nhất**. Từ lần sau chỉ cần chạy bước 2 (nếu có data mới) và bước 6.
+
+### STREAMING
+
+Terminal 1 — Bật Spark Streaming (Consumer)
+
+```bash
+docker exec spark-notebook /usr/local/spark/bin/spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.mongodb.spark:mongo-spark-connector_2.12:10.4.0 /home/jovyan/work/streaming_etl.py
+```
+
+(Chờ nó hiện chữ Streaming Pipeline Started. Waiting for data...)
+
+Terminal 2 — Bật Python Producer
+```bash
+docker exec -w /home/jovyan/work spark-notebook python -c "from producer import send_reviews; send_reviews(rate=10)"
+```
+
+Terminal 3 — Xem MongoDB
+```bash
+docker exec mongodb mongosh steam_realtime --eval "db.realtime_sentiment.find().sort({_id: -1}).limit(3)"
+```
