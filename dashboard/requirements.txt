@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+pyhive[hive]
+pymongo
+thrift
+thrift-sasl
+pure-sasl
